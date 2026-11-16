@@ -1,31 +1,148 @@
 // SPDX-License-Identifier: Apache-2.0
-//! SigmaOS-ethereum-cex - Cloud/ML/Blockchain component
-//! Part of SigmaOS multi-repository architecture
+//! SigmaOS-ethereum-cex: ethereum cex component model.
+//!
+//! Real implementation: cexs, events, validation, deterministic storage.
+//! Replaces the placeholder stub.
 
-#![no_std]
+use std::collections::BTreeMap;
+use std::fmt;
 
-/// Component
-pub struct Component {
-    name: &'static str,
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct Cex {
+    pub id: String,
+    pub name: String,
+    pub kind: String,
+    pub detail: String,
 }
 
-impl Component {
-    pub fn new() -> Self {
-        Self { name: "SigmaOS-ethereum-cex" }
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct Event {
+    pub id: String,
+    pub subject: String,
+    pub detail: String,
+    pub timestamp: u64,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum EthereumCexError {
+    EmptyCexName,
+    DuplicateCex(String),
+    EmptyEventSubject,
+}
+
+impl fmt::Display for EthereumCexError {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Self::EmptyCexName => write!(f, "cex name must not be empty"),
+            Self::DuplicateCex(id) => write!(f, "duplicate cex {:?}", id),
+            Self::EmptyEventSubject => write!(f, "event subject must not be empty"),
+        }
     }
 }
 
-impl Default for Component {
-    fn default() -> Self {
-        Self::new()
+impl std::error::Error for EthereumCexError {}
+
+pub struct EthereumCex {
+    pub name: String,
+    cexs: BTreeMap<String, Cex>,
+    events: BTreeMap<String, Event>,
+}
+
+impl EthereumCex {
+    pub fn new(name: impl Into<String>) -> Self {
+        Self {
+            name: name.into(),
+            cexs: BTreeMap::new(),
+            events: BTreeMap::new(),
+        }
+    }
+
+    pub fn add_cex(&mut self, item: Cex) -> Result<(), EthereumCexError> {
+        if item.name.trim().is_empty() {
+            return Err(EthereumCexError::EmptyCexName);
+        }
+        let id = item.id.clone();
+        if self.cexs.contains_key(&id) {
+            return Err(EthereumCexError::DuplicateCex(id.clone()));
+        }
+        self.cexs.insert(id, item);
+        Ok(())
+    }
+
+    pub fn cex_count(&self) -> usize {
+        self.cexs.len()
+    }
+
+    pub fn get_cex(&self, id: &str) -> Option<&Cex> {
+        self.cexs.get(id)
+    }
+
+    pub fn add_event(&mut self, event: Event) -> Result<(), EthereumCexError> {
+        if event.subject.trim().is_empty() {
+            return Err(EthereumCexError::EmptyEventSubject);
+        }
+        self.events.insert(event.id.clone(), event);
+        Ok(())
+    }
+
+    pub fn event_count(&self) -> usize {
+        self.events.len()
+    }
+
+    pub fn get_event(&self, id: &str) -> Option<&Event> {
+        self.events.get(id)
     }
 }
 
 #[cfg(test)]
 mod tests {
+    use super::*;
+
+    fn sample_cex(id: &str, name: &str) -> Cex {
+        Cex {
+            id: id.into(),
+            name: name.into(),
+            kind: "default".into(),
+            detail: String::new(),
+        }
+    }
+
     #[test]
-    fn test_creation() {
-        let c = super::Component::new();
-        assert_eq!(c.name, "SigmaOS-ethereum-cex");
+    fn test_create() {
+        let m = EthereumCex::new("EthereumCex");
+        assert_eq!(m.name, "EthereumCex");
+        assert_eq!(m.cex_count(), 0);
+        assert_eq!(m.event_count(), 0);
+    }
+
+    #[test]
+    fn test_add_cex() {
+        let mut m = EthereumCex::new("EthereumCex");
+        m.add_cex(sample_cex("a1", "Alpha")).unwrap();
+        assert_eq!(m.cex_count(), 1);
+        assert!(m.get_cex("a1").is_some());
+    }
+
+    #[test]
+    fn test_empty_name_rejected() {
+        let mut m = EthereumCex::new("EthereumCex");
+        assert!(m.add_cex(sample_cex("x", "   ")).is_err());
+    }
+
+    #[test]
+    fn test_duplicate_rejected() {
+        let mut m = EthereumCex::new("EthereumCex");
+        m.add_cex(sample_cex("x", "One")).unwrap();
+        assert!(m.add_cex(sample_cex("x", "Two")).is_err());
+    }
+
+    #[test]
+    fn test_event_validation() {
+        let mut m = EthereumCex::new("EthereumCex");
+        let bad = Event { id: "e1".into(), subject: "".into(), detail: String::new(), timestamp: 0 };
+        assert!(m.add_event(bad).is_err());
+        let good = Event { id: "e1".into(), subject: "boot".into(), detail: String::new(), timestamp: 1 };
+        m.add_event(good).unwrap();
+        assert_eq!(m.event_count(), 1);
     }
 }
