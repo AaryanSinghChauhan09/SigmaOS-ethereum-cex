@@ -3,7 +3,7 @@ name = "SigmaOS-ethereum-cex"
 tier = 2
 stability = "scaffold"
 language = "rust"
-description = "ethereum-cex component"
+description = "ethereum cex component"
 upstream = []
 
 [contract]
